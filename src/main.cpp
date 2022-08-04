@@ -6,64 +6,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "MACROS.h"
+#include "grid.h"
+#include "snake.h"
 
 Display* display;
-int screen_number;
+int screen, width, height, windowx, windowy;
 Colormap colormap;
 Window root;
 Window w1;
-Pixmap p1;
 XWindowAttributes xattr;
-XcmsCCC ccc;
 GC gc;
-XGCValues* gc_data;
+XGCValues gc_data;
+Grid* grid;
+Visual* truecolor;
+snake* XSnake;
 
-XImage space;
 
 void Connect(){
     /*establish connection to X server*/
     display = XOpenDisplay(NULL);
-    screen_number = DefaultScreen(display);
 
-    /*pixel values*/
+    if(display){
+        screen = DefaultScreen(display);
 
-    unsigned long white_pixel, black_pixel;
-    white_pixel = WhitePixel(display,screen_number);
-    black_pixel = BlackPixel(display,screen_number);
-
-    /*Create Window*/
-    root = DefaultRootWindow(display);
-    w1 = XCreateSimpleWindow(display,root,0,0,DisplayWidth(display,screen_number),DisplayHeight(display,screen_number),0,black_pixel,black_pixel);
-    XMapWindow(display,w1);
+        /*Create Window*/
+        root = DefaultRootWindow(display);
+        w1 = XCreateSimpleWindow(display,root,0,0,DisplayWidth(display,screen),DisplayHeight(display,screen),0,0,0);
+        XMapWindow(display,w1);
+        XSelectInput(display,w1, ExposureMask | KeyPressMask);
+        
+        //XFlush(display); //pass output buffer
+    }else{
+        std::cout << "connection to X server failed" << '\n';
+    }
     
-
-    /*createpixmap*/
-
-    p1 = XCreatePixmap(display,w1,DisplayWidth(display,screen_number),DisplayHeight(display,screen_number),DefaultDepth(display,screen_number));
-
-    /* create (default) Graphics Context (GC) */
-
-    gc = XDefaultGC(display,screen_number);
-
-    /*set cursor*/
-    XCreateFontCursor(display,2);
-
-    XFlush(display); //pass output buffer
 }
 
 void close(){
-    XFreePixmap(display,p1);
-    XcmsFreeCCC(ccc);
+
+    grid->map_destructor();
+    delete grid;
     XFreeColormap(display,colormap);
-    XSetCloseDownMode(display,1); /*1(default) destroys all resources
-    retein: (2) permament resources (3) temporarty resorces */
+    XFreeGC(display, gc);
+	XDestroyWindow(display,w1);
     XCloseDisplay(display);
+    exit(1);
 }
 
-Visual* truecolor;
-
 /* Returns pointer to  visual type (visual*) from visual class (int) */
-
 Visual* GetVisualFromClass(int cclass){
     XVisualInfo temp;
     temp.c_class = cclass;
@@ -72,24 +63,49 @@ Visual* GetVisualFromClass(int cclass){
     return visualinfo->visual;
 }
 void create_colormap(){
-    /* set visual type to true color (24bit depth) colormap has allocated cells with set values */
+    /* set visual type to true color (24bit depth)*/
     truecolor = GetVisualFromClass(TrueColor);
     colormap = XCreateColormap(display,root,truecolor,AllocNone);
     XInstallColormap(display,colormap);
-
-    ccc = XcmsCCCOfColormap(display,colormap);
-
-    /* print stuff */
     XGetWindowAttributes(display,w1,&xattr);
-    //std::cout <<  << '\n';
 }
 
-void loadimage(XImage img){
-    //&img = XCreateImage(display,truecolor,DefaultDepth(display,screen_number),ZPixmap,NULL,DisplayWidth(display,screen_number),DisplayHeight(display,screen_number))
-    img.width = DisplayWidth(display,screen_number);
-    img.height = DisplayHeight(display,screen_number);
-    XInitImage(&img);
-    XPutImage(display,w1,gc,&img,0,0,0,0,DisplayWidth(display,screen_number),DisplayHeight(display,screen_number));
+/* converts rgb (0-255) to one 24 bit pixel vlaue that means 8bit per channel */
+unsigned long get24pixval(int r, int g, int b){
+    return  (r*65536) + (g*256) + b;
+}
+
+void getwindowinfo(){
+    XGetWindowAttributes(display,w1,&xattr);
+    width = xattr.width;
+    height = xattr.height;
+    windowx = xattr.x;
+    windowy = xattr.y;
+}
+
+int snakeprevx, snakeprevy;
+
+void redraw(){
+    //XClearArea(display,w1,snakeprevx,snakeprevy,100,100,0);
+    //(XSnake->length)*(XSnake->length),(XSnake->length)*(XSnake->length)
+    XClearWindow(display,w1);
+    getwindowinfo();
+
+    grid->WinH = height;
+    grid->WinW = width;
+    /*redraw grid*/
+    XSetForeground(display,gc,get24pixval(30,30,30));
+    grid->draw_grid(display,gc,w1);
+    /*redraw snake*/
+    XSnake->initialx = (width-(grid->dimension*grid->cell_dimension))/2;
+    XSnake->initialy = (height-(grid->dimension*grid->cell_dimension))/2;;
+    XSetForeground(display,gc,get24pixval(255,255,255));
+    XSnake->print(display,w1,gc);
+}
+
+void animation(){
+    XSnake->move();
+    redraw();
 }
 
 int main(){
@@ -97,11 +113,77 @@ int main(){
     Connect();
     create_colormap();
 
-    //loadimage(space);
+    XEvent event;
 
-    for(;;)sleep(1);
-    /*Atom* a =  XListProperties(display,w1,npr);
-    pribnt array
-    for(int i = 0; i <= *npr; i++){ std::cout << *(a+i) << '\n';} */
+    /*set GC */
+    gc_data.foreground = get24pixval(30,30,30);
+    gc_data.background = 0;
+    gc_data.line_width = 5;
+    gc = XCreateGC(display,w1,GCForeground | GCBackground | GCLineWidth, &gc_data);
+    /*draw grid*/
+    grid = new Grid;
+    
+    grid->dimension = 20;
+    grid->cell_dimension = 40;
+    grid->linewidth = gc_data.line_width;
+
+    grid->draw_grid(display,gc,w1);
+
+    /*create snake*/
+
+    
+
+    getwindowinfo();
+
+    XSnake = new snake;
+    
+    XSnake->size = (grid->cell_dimension)*0.7;
+    XSnake->cellsize = grid->cell_dimension;
+    XSnake->cellnumber = grid->dimension;
+    XSnake->addnode();
+    
+   
+    //XSnake->SnakeX = grid->cell_position_map
+
+    /*Event Handling*/
+
+    for(;;){
+
+        if(XPending(display)){
+            XNextEvent(display, &event);
+            switch(event.type){
+                case(Expose):
+                    redraw();
+                    XSetForeground(display,gc,get24pixval(255,50,50));
+                    break;
+                case(KeyPress):
+                    //XSnake->move();
+                    redraw();
+                
+                    
+                    switch((event.xkey).keycode){
+                        
+                        case(A): XSnake->left(); std::cout << "left" <<'\n'; break;
+                        case(W): XSnake->up(); break;
+                        case(S): XSnake->down(); break;
+                        case(D): XSnake->right(); break;
+                        case(Q):close(); 
+                        default:break;
+                    }
+                    break;
+
+                default: break;
+
+            }
+        }
+        animation();
+        if(!XPending(display)){
+            usleep(500000);
+        }
+        
+        
+    }
+        
+    
     return 0;
 }

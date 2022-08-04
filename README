@@ -1,1 +1,3 @@
 Simple Snake game made in C++ using pure Xlib
+
+controls: arrows/awsd

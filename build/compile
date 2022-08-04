@@ -1,0 +1,2 @@
+g++ *.cpp -o a -I /usr/include/X11 -L /usr/X11/lib -lX11
+
