@@ -24,27 +24,19 @@ snake* XSnake;
 
 
 void Connect(){
-    /*establish connection to X server*/
     display = XOpenDisplay(NULL);
-
     if(display){
         screen = DefaultScreen(display);
-
-        /*Create Window*/
         root = DefaultRootWindow(display);
         w1 = XCreateSimpleWindow(display,root,0,0,DisplayWidth(display,screen),DisplayHeight(display,screen),0,0,0);
         XMapWindow(display,w1);
         XSelectInput(display,w1, ExposureMask | KeyPressMask);
-        
-        //XFlush(display); //pass output buffer
     }else{
         std::cout << "connection to X server failed" << '\n';
     }
-    
 }
 
 void close(){
-
     grid->map_destructor();
     delete grid;
     XFreeColormap(display,colormap);
@@ -83,23 +75,15 @@ void getwindowinfo(){
     windowy = xattr.y;
 }
 
-int snakeprevx, snakeprevy;
-
 void redraw(){
-    //XClearArea(display,w1,snakeprevx,snakeprevy,100,100,0);
-    //(XSnake->length)*(XSnake->length),(XSnake->length)*(XSnake->length)
     XClearWindow(display,w1);
-    getwindowinfo();
-
-    grid->WinH = height;
-    grid->WinW = width;
     /*redraw grid*/
-    XSetForeground(display,gc,get24pixval(30,30,30));
+    XSetForeground(display,gc,get24pixval(5,30,5));
     grid->draw_grid(display,gc,w1);
     /*redraw snake*/
     XSnake->initialx = (width-(grid->dimension*grid->cell_dimension))/2;
     XSnake->initialy = (height-(grid->dimension*grid->cell_dimension))/2;;
-    XSetForeground(display,gc,get24pixval(255,255,255));
+    XSetForeground(display,gc,get24pixval(50,150,50));
     XSnake->print(display,w1,gc);
 }
 
@@ -118,21 +102,18 @@ int main(){
     /*set GC */
     gc_data.foreground = get24pixval(30,30,30);
     gc_data.background = 0;
-    gc_data.line_width = 5;
+    gc_data.line_width = 2;
     gc = XCreateGC(display,w1,GCForeground | GCBackground | GCLineWidth, &gc_data);
     /*draw grid*/
     grid = new Grid;
     
-    grid->dimension = 20;
-    grid->cell_dimension = 40;
+    grid->dimension = 50;
+    grid->cell_dimension = 20;
     grid->linewidth = gc_data.line_width;
 
     grid->draw_grid(display,gc,w1);
 
     /*create snake*/
-
-    
-
     getwindowinfo();
 
     XSnake = new snake;
@@ -140,6 +121,8 @@ int main(){
     XSnake->size = (grid->cell_dimension)*0.7;
     XSnake->cellsize = grid->cell_dimension;
     XSnake->cellnumber = grid->dimension;
+    XSnake->addnode();
+    XSnake->addnode();
     XSnake->addnode();
     
    
@@ -153,21 +136,22 @@ int main(){
             XNextEvent(display, &event);
             switch(event.type){
                 case(Expose):
+                    getwindowinfo();
+                    grid->WinH = height;
+                    grid->WinW = width;
                     redraw();
                     XSetForeground(display,gc,get24pixval(255,50,50));
                     break;
                 case(KeyPress):
-                    //XSnake->move();
-                    redraw();
-                
-                    
+                    XSnake->oldx = XSnake->SnakeX;
+                    XSnake->oldy = XSnake->SnakeY;
                     switch((event.xkey).keycode){
                         
                         case(A): XSnake->left(); std::cout << "left" <<'\n'; break;
                         case(W): XSnake->up(); break;
                         case(S): XSnake->down(); break;
                         case(D): XSnake->right(); break;
-                        case(Q):close(); 
+                        case(Q): close(); 
                         default:break;
                     }
                     break;
@@ -176,9 +160,15 @@ int main(){
 
             }
         }
-        animation();
+
+        if(XSnake->SnakeX < 0) XSnake->SnakeX = 0;
+        else if(XSnake->SnakeX == grid->dimension) XSnake->SnakeX = grid->dimension - 1;
+        else if(XSnake->SnakeY < 0) XSnake->SnakeY = 0;
+        else if(XSnake->SnakeY == grid->dimension) XSnake->SnakeY = grid->dimension - 1;
+        else animation();
+            
         if(!XPending(display)){
-            usleep(500000);
+            usleep(200000);
         }
         
         
