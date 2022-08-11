@@ -1,3 +1,6 @@
 Simple Snake game made in C++ using pure Xlib
 
 controls: arrows/awsd
+
+compile: g++ *.cpp -o a -I /usr/include/X11 -L /usr/X11/lib -lX11
+

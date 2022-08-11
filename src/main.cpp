@@ -9,18 +9,20 @@
 #include "MACROS.h"
 #include "grid.h"
 #include "snake.h"
+#include "ui.h"
+#include <string.h>
 
 Display* display;
-int screen, width, height, windowx, windowy;
+int screen, width, height;
 Colormap colormap;
-Window root;
-Window w1;
+Window root, w1;
 XWindowAttributes xattr;
 GC gc;
 XGCValues gc_data;
 Grid* grid;
 Visual* truecolor;
 snake* XSnake;
+menu Menu;
 
 
 void Connect(){
@@ -30,10 +32,8 @@ void Connect(){
         root = DefaultRootWindow(display);
         w1 = XCreateSimpleWindow(display,root,0,0,DisplayWidth(display,screen),DisplayHeight(display,screen),0,0,0);
         XMapWindow(display,w1);
-        XSelectInput(display,w1, ExposureMask | KeyPressMask);
-    }else{
-        std::cout << "connection to X server failed" << '\n';
-    }
+        XSelectInput(display,w1, ExposureMask | KeyPressMask | ButtonPressMask);
+    } else { std::cout << "connection to X server failed" << '\n';}
 }
 
 void close(){
@@ -52,14 +52,7 @@ Visual* GetVisualFromClass(int cclass){
     temp.c_class = cclass;
     int n;
     XVisualInfo* visualinfo = XGetVisualInfo(display,VisualClassMask,&temp,&n);
-    return visualinfo->visual;
-}
-void create_colormap(){
-    /* set visual type to true color (24bit depth)*/
-    truecolor = GetVisualFromClass(TrueColor);
-    colormap = XCreateColormap(display,root,truecolor,AllocNone);
-    XInstallColormap(display,colormap);
-    XGetWindowAttributes(display,w1,&xattr);
+    return visualinfo->visual; 
 }
 
 /* converts rgb (0-255) to one 24 bit pixel vlaue that means 8bit per channel */
@@ -71,24 +64,27 @@ void getwindowinfo(){
     XGetWindowAttributes(display,w1,&xattr);
     width = xattr.width;
     height = xattr.height;
-    windowx = xattr.x;
-    windowy = xattr.y;
 }
+
+bool ded = 0;
 
 void redraw(){
-    XClearWindow(display,w1);
-    /*redraw grid*/
     XSetForeground(display,gc,get24pixval(5,30,5));
     grid->draw_grid(display,gc,w1);
-    /*redraw snake*/
     XSnake->initialx = (width-(grid->dimension*grid->cell_dimension))/2;
-    XSnake->initialy = (height-(grid->dimension*grid->cell_dimension))/2;;
+    XSnake->initialy = (height-(grid->dimension*grid->cell_dimension))/2;
     XSetForeground(display,gc,get24pixval(50,150,50));
+    if(XSnake->head->x == (grid->foodx-((XSnake->size - grid->size)/2)) 
+    && XSnake->head->y == (grid->foody-((XSnake->size - grid->size)/2))){
+        XSnake->add=1; grid->createfood();
+    }
+    grid->printfood(display,gc,w1);
     XSnake->print(display,w1,gc);
+    if(XSnake->detectdeath()){ded=0;XClearWindow(display,w1);}
 }
-
 void animation(){
     XSnake->move();
+    XSnake->pop(display,w1);
     redraw();
 }
 
@@ -100,80 +96,134 @@ int main(){
     XEvent event;
 
     /*set GC */
-    gc_data.foreground = get24pixval(30,30,30);
-    gc_data.background = 0;
+    
+    
     gc_data.line_width = 2;
-    gc = XCreateGC(display,w1,GCForeground | GCBackground | GCLineWidth, &gc_data);
+    gc = XCreateGC(display,w1,GCLineWidth ,&gc_data);
+    
+    /*XFontStruct* font = XLoadQueryFont(display, "*");
+    if(font)std::cout << "font found" << '\n';
+    */
     /*draw grid*/
+  
+
     grid = new Grid;
     
     grid->dimension = 50;
     grid->cell_dimension = 20;
     grid->linewidth = gc_data.line_width;
 
-    grid->draw_grid(display,gc,w1);
-
     /*create snake*/
-    getwindowinfo();
 
     XSnake = new snake;
     
     XSnake->size = (grid->cell_dimension)*0.7;
     XSnake->cellsize = grid->cell_dimension;
     XSnake->cellnumber = grid->dimension;
-    XSnake->addnode();
-    XSnake->addnode();
-    XSnake->addnode();
-    
-   
-    //XSnake->SnakeX = grid->cell_position_map
+    XSnake->push();
 
-    /*Event Handling*/
+    /*Button dimensions*/
 
-    for(;;){
+    Menu.buttheight = 100;
+    Menu.buttwidth = 300;
 
+    /*initial menu event loop*/
+
+    while(!ded){
+        XNextEvent(display, &event);
+        switch(event.type){
+            case(Expose):
+                getwindowinfo();
+                /*set game scene*/
+                grid->WinH = height;
+                grid->WinW = width;
+                XSnake->head->x=((width-(grid->dimension*grid->cell_dimension))/2)+((XSnake->cellsize-XSnake->size)/2);
+                XSnake->head->y=((height-(grid->dimension*grid->cell_dimension))/2)+((XSnake->cellsize-XSnake->size)/2);
+                grid->createmap();
+                /*menu redraw*/
+                Menu.centerx = (width-Menu.buttwidth)/2;
+                Menu.centery = (height-Menu.buttheight)/2;
+                Menu.redraw(display,gc,w1,get24pixval(50,100,50),get24pixval(100,150,100));
+                break;
+            case(ButtonPress):
+                if(event.xbutton.x > Menu.centerx && event.xbutton.x < (Menu.centerx + Menu.buttwidth) 
+                && event.xbutton.y > Menu.centery && event.xbutton.y < (Menu.centery + Menu.buttheight)){
+                    ded = 1;
+                    Menu.redraw(display,gc,w1,get24pixval(100,150,100),get24pixval(50,100,50));
+                    XFlush(display);
+                    usleep(200000);
+                    XClearWindow(display,w1);
+                    grid->createfood();
+                    XSetLineAttributes(display,gc,2,0,0,0);
+                }
+                break;
+            default:break;
+        }
+    }
+
+    /*Main Event Handling Loop*/
+
+    for(;;){     
         if(XPending(display)){
             XNextEvent(display, &event);
-            switch(event.type){
-                case(Expose):
-                    getwindowinfo();
-                    grid->WinH = height;
-                    grid->WinW = width;
-                    redraw();
-                    XSetForeground(display,gc,get24pixval(255,50,50));
-                    break;
-                case(KeyPress):
-                    XSnake->oldx = XSnake->SnakeX;
-                    XSnake->oldy = XSnake->SnakeY;
-                    switch((event.xkey).keycode){
+            if(ded){
+                switch(event.type){
+                    case(Expose):
+                        getwindowinfo();
+                        grid->WinH = height;
+                        grid->WinW = width;
+                        redraw();
+                        XSetForeground(display,gc,get24pixval(255,50,50));
+                        break;
                         
-                        case(A): XSnake->left(); std::cout << "left" <<'\n'; break;
-                        case(W): XSnake->up(); break;
-                        case(S): XSnake->down(); break;
-                        case(D): XSnake->right(); break;
-                        case(Q): close(); 
-                        default:break;
-                    }
-                    break;
+                    case(KeyPress):
+                        switch((event.xkey).keycode){
+                            
+                            case(113):case(38): XSnake->left(); break; //left
+                            case(25):case(111): XSnake->up(); break; //up
+                            case(39):case(116): XSnake->down(); break; //down
+                            case(40):case(114): XSnake->right(); break; //right
+                            case(24):close(); 
+                            default:break;
+                        }
+                        break;
 
-                default: break;
-
+                    default: break;
+                }
+            }else{
+                switch(event.type){
+                    case(Expose):
+                        getwindowinfo();
+                        Menu.centerx = (width-Menu.buttwidth)/2;
+                        Menu.centery = (height-Menu.buttheight)/2;
+                        XClearWindow(display,w1);
+                        break;
+                    case(ButtonPress):
+                        if(event.xbutton.x > Menu.centerx && event.xbutton.x < (Menu.centerx + Menu.buttwidth) 
+                        && event.xbutton.y > Menu.centery && event.xbutton.y < (Menu.centery + Menu.buttheight)){
+                            ded=1;
+                            Menu.redraw(display,gc,w1,get24pixval(100,150,100),get24pixval(50,100,50));
+                            XFlush(display);
+                            usleep(200000);
+                            XSnake->head->x=((width-(grid->dimension*grid->cell_dimension))/2)+((XSnake->cellsize-XSnake->size)/2);
+                            XSnake->head->y=((height-(grid->dimension*grid->cell_dimension))/2)+((XSnake->cellsize-XSnake->size)/2);
+                            XSnake->direction = 3;
+                            grid->createfood();
+                            XSetLineAttributes(display,gc,2,0,0,0);
+                            XClearWindow(display,w1);
+                            XSnake->DeleteSnake();
+                        }
+                        break;
+                    default:break;
+                }
             }
         }
 
-        if(XSnake->SnakeX < 0) XSnake->SnakeX = 0;
-        else if(XSnake->SnakeX == grid->dimension) XSnake->SnakeX = grid->dimension - 1;
-        else if(XSnake->SnakeY < 0) XSnake->SnakeY = 0;
-        else if(XSnake->SnakeY == grid->dimension) XSnake->SnakeY = grid->dimension - 1;
-        else animation();
-            
-        if(!XPending(display)){
-            usleep(200000);
-        }
+        if(ded)animation();
+        else Menu.redraw(display,gc,w1,get24pixval(50,100,50),get24pixval(100,150,100));
         
-        
+        if(!XPending(display)&&ded) usleep(200000);
     }
-        
-    
+
     return 0;
 }

@@ -11,8 +11,9 @@ class Grid{
 
     /* methods */
 
-    void createfood(Display* d, GC gc, Drawable drawable);
-    void eat(Display* d, GC gc, Window window);
+    void createfood();
+    void createmap();
+    void printfood(Display* d, GC gc, Drawable drawable);
     void draw_grid(Display* d, GC gc, Drawable drawable);
     void map_destructor();
     

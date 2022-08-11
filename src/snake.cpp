@@ -4,51 +4,76 @@
 #include <unistd.h>
 
 #include "snake.h"
+#include "grid.h"
 
-void snake::addnode(){
+SnakeNode* snake::push(){
     SnakeNode* ptr = new SnakeNode;
-    SnakeNode* tmp = NULL;
-    length++;
-    if(!root){
-        root = ptr;
-      
+    
+    if(head){
+        ptr->prev = head;
+        head->next = ptr;
+        head = ptr;
+        if(add){add=0;length++;}
+        else tail=tail->next;
     }else{
-        tmp = root;
-        while(tmp->prev){
-            tmp = tmp->prev;
-        }
-        tmp->prev = ptr;
+        head = ptr;
+        tail = ptr;
+    }  
+    return ptr;
+}
+
+void snake::pop(Display* d, Window window){
+    if(tail->prev){
+        XClearArea(d,window,tail->prev->x,tail->prev->y,size,size,0);
+        delete tail->prev;
+        tail->prev=NULL;
     }
 }
 
 void snake::move(){
+    SnakeNode* ptr = push();
     switch(direction){
-        case(1):SnakeX--;break;
-        case(2):SnakeY--;break;
-        case(3):SnakeX++;break;
-        case(4):SnakeY++;break;
+        case(1):ptr->x=(ptr->prev->x)-cellsize; ptr->y=(ptr->prev->y); break;
+        case(2):ptr->y=(ptr->prev->y)-cellsize; ptr->x=(ptr->prev->x); break;
+        case(3):ptr->x=(ptr->prev->x)+cellsize; ptr->y=(ptr->prev->y); break;
+        case(4):ptr->y=(ptr->prev->y)+cellsize; ptr->x=(ptr->prev->x); break;
         default:break;
     }
-    
 }
 
 void snake::print(Display* d, Drawable drawable, GC gc){
-    if(root){
-        SnakeNode* tmp = root;
-
-        for(int i = 0; i < length; i++){
-            
-                tmp -> x = initialx+((cellsize-size)/2)+(SnakeX*cellsize)-(i*cellsize);
-                tmp -> y = initialy+((cellsize-size)/2)+(SnakeY*cellsize);
-       
-
-            XFillRectangle(d,drawable,gc,tmp->x,tmp->y,size,size);
-            tmp = tmp->prev;
-        }
+    if (head) {
+        XFillRectangle(d,drawable,gc,head->x,head->y,size,size);
+        XFillRectangle(d,drawable,gc,tail->x,tail->y,size,size);
     }
 }
 
-void snake::left(){ direction = 1;};
-void snake::right(){ direction = 3;};
-void snake::up(){ direction = 2;};
-void snake::down(){ direction = 4;};
+bool snake::detectdeath(){
+    SnakeNode *tmp = tail;
+    while(tmp!=head){
+        if(tmp->x == head->x && tmp->y == head->y && length>1) overlap = 1;
+        tmp=tmp->next;
+    }
+    if((head->x<initialx || head->x>initialx+(cellnumber*cellsize) || head->y<initialy || head->y>initialy+(cellnumber*cellsize))
+    || overlap){overlap = 0; return 1;}
+    else return 0;
+}
+
+
+void snake::left(){ if(direction==4 || direction==2) direction = 1;};
+void snake::right(){ if(direction==4 || direction==2) direction = 3;};
+void snake::up(){ if(direction==1 || direction==3) direction = 2;};
+void snake::down(){ if(direction==3 || direction==1) direction = 4;};
+
+void snake::deletenode(SnakeNode* tmp){
+    if(tmp){
+        deletenode(tmp->prev);
+        delete tmp;
+    }
+}
+
+void snake::DeleteSnake(){
+    tail = head;
+    deletenode(head->prev);
+    length = 0;
+}

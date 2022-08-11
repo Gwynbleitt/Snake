@@ -1,9 +1,7 @@
 #include <iostream>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-
 #include "grid.h"
-
 
 void Grid::draw_grid(Display* d, GC gc, Drawable drawable){
 
@@ -30,28 +28,30 @@ void Grid::draw_grid(Display* d, GC gc, Drawable drawable){
         }
 
         XDrawSegments(d,drawable,gc,lines,(dimension*2)+2);
+    }
+}
 
-        /* create cell position (center) map */
+void Grid::createmap(){
+    short int grid_x = (WinW-(dimension*cell_dimension))/2;
+    short int grid_y = (WinH-(dimension*cell_dimension))/2;
+    cells = dimension*dimension;
 
-        cells = dimension*dimension;
-
-        cell_position_map = new int[cells*2];
-        int c = 0;
-        int r = 0;
-        for(int i = 0; i < cells*2-1; i+=2){
-            cell_position_map[i] = grid_x  + (c*cell_dimension); //x
-            cell_position_map[i+1] = grid_y  + (r*cell_dimension); //y
-            c++;
-            if(c%dimension == 0){
-                c=0;
-                r++;
-            }
+    cell_position_map = new int[cells*2];
+    int c = 0;
+    int r = 0;
+    for(int i = 0; i < cells*2-1; i+=2){
+        cell_position_map[i] = grid_x  + (c*cell_dimension); //x
+        cell_position_map[i+1] = grid_y  + (r*cell_dimension); //y
+        c++;
+        if(c%dimension == 0){
+            c=0;
+            r++;
         }
     }
 }
 
-void Grid::createfood(Display* d, GC gc, Drawable drawable){
-
+void Grid::createfood(){
+    
     int random = rand()%(cells*2);
     size = cell_dimension/2;
 
@@ -62,13 +62,10 @@ void Grid::createfood(Display* d, GC gc, Drawable drawable){
         foodx = cell_position_map[random+1]+(size/2);
         foody = cell_position_map[random]+(size/2);
     }
-
-    XFillArc(d,drawable,gc,foodx,foody,size,size,0,29440);
-
 }
 
-void Grid::eat(Display* d, GC gc, Window window){
-    XClearArea(d,window,foodx,foody,size,size,0);
+void Grid::printfood(Display* d, GC gc, Drawable drawable){
+    XFillArc(d,drawable,gc,foodx,foody,size,size,0,29440);
 }
 
 void Grid::map_destructor(){
