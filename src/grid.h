@@ -11,10 +11,11 @@ class Grid{
 
     /* methods */
 
+    Grid();
+    ~Grid();
+
     void createfood();
-    void createmap();
     void printfood(Display* d, GC gc, Drawable drawable);
     void draw_grid(Display* d, GC gc, Drawable drawable);
-    void map_destructor();
     
 };

@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "MACROS.h"
 #include "grid.h"
 #include "snake.h"
 #include "ui.h"
@@ -37,7 +36,6 @@ void Connect(){
 }
 
 void close(){
-    grid->map_destructor();
     delete grid;
     XFreeColormap(display,colormap);
     XFreeGC(display, gc);
@@ -64,6 +62,11 @@ void getwindowinfo(){
     XGetWindowAttributes(display,w1,&xattr);
     width = xattr.width;
     height = xattr.height;
+}
+
+void create_colormap(){
+    colormap = XCreateColormap(display,w1,GetVisualFromClass(TrueColor),AllocNone);
+    XInstallColormap(display,colormap);
 }
 
 bool ded = 0;
@@ -139,7 +142,6 @@ int main(){
                 grid->WinW = width;
                 XSnake->head->x=((width-(grid->dimension*grid->cell_dimension))/2)+((XSnake->cellsize-XSnake->size)/2);
                 XSnake->head->y=((height-(grid->dimension*grid->cell_dimension))/2)+((XSnake->cellsize-XSnake->size)/2);
-                grid->createmap();
                 /*menu redraw*/
                 Menu.centerx = (width-Menu.buttwidth)/2;
                 Menu.centery = (height-Menu.buttheight)/2;

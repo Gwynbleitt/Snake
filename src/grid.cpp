@@ -31,7 +31,7 @@ void Grid::draw_grid(Display* d, GC gc, Drawable drawable){
     }
 }
 
-void Grid::createmap(){
+Grid::Grid(){
     short int grid_x = (WinW-(dimension*cell_dimension))/2;
     short int grid_y = (WinH-(dimension*cell_dimension))/2;
     cells = dimension*dimension;
@@ -68,6 +68,6 @@ void Grid::printfood(Display* d, GC gc, Drawable drawable){
     XFillArc(d,drawable,gc,foodx,foody,size,size,0,29440);
 }
 
-void Grid::map_destructor(){
+Grid::~Grid(){
     delete[] cell_position_map;
 }
